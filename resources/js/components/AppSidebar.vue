@@ -12,12 +12,23 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import listingRoutes from '@/routes/listings';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-vue-next';
+import { Link, usePage } from '@inertiajs/vue3';
+import { BookOpen, Folder, LayoutGrid, Plus, ShoppingCart, User } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
+    {
+        title: 'Browse Listings',
+        href: listingRoutes.index(),
+        icon: ShoppingCart,
+    },
+    {
+        title: 'Create Listing',
+        href: listingRoutes.create(),
+        icon: Plus,
+    },
     {
         title: 'Dashboard',
         href: dashboard(),
@@ -37,6 +48,9 @@ const footerNavItems: NavItem[] = [
         icon: BookOpen,
     },
 ];
+
+const page = usePage();
+const user = page.props.auth.user;
 </script>
 
 <template>
@@ -59,7 +73,7 @@ const footerNavItems: NavItem[] = [
 
         <SidebarFooter>
             <NavFooter :items="footerNavItems" />
-            <NavUser />
+            <NavUser v-if="user" />
         </SidebarFooter>
     </Sidebar>
     <slot />

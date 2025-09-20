@@ -82,10 +82,64 @@ import { LoaderCircle } from 'lucide-vue-next';
                     <InputError :message="errors.password_confirmation" />
                 </div>
 
+                <div class="grid gap-2">
+                    <Label for="type">Account Type</Label>
+                    <select
+                        id="type"
+                        name="type"
+                        required
+                        :tabindex="5"
+                        class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <option value="">Select account type</option>
+                        <option value="individual">Individual</option>
+                        <option value="business">Business</option>
+                    </select>
+                    <InputError :message="errors.type" />
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="country">Country</Label>
+                    <Input
+                        id="country"
+                        type="text"
+                        required
+                        :tabindex="6"
+                        name="country"
+                        placeholder="Country"
+                    />
+                    <InputError :message="errors.country" />
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="state_province">State/Province (Optional)</Label>
+                    <Input
+                        id="state_province"
+                        type="text"
+                        :tabindex="7"
+                        name="state_province"
+                        placeholder="State or Province"
+                    />
+                    <InputError :message="errors.state_province" />
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="city">City</Label>
+                    <Input
+                        id="city"
+                        type="text"
+                        required
+                        :tabindex="8"
+                        name="city"
+                        placeholder="City"
+                    />
+                    <InputError :message="errors.city" />
+                </div>
+
                 <Button
                     type="submit"
                     class="mt-2 w-full"
-                    tabindex="5"
+                    tabindex="9"
                     :disabled="processing"
                     data-test="register-user-button"
                 >
@@ -102,7 +156,7 @@ import { LoaderCircle } from 'lucide-vue-next';
                 <TextLink
                     :href="login()"
                     class="underline underline-offset-4"
-                    :tabindex="6"
+                    :tabindex="10"
                     >Log in</TextLink
                 >
             </div>
