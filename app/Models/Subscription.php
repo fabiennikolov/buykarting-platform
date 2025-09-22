@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Subscription extends Model
 {
@@ -18,7 +19,6 @@ class Subscription extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'user_id',
         'plan_name',
         'starts_at',
         'ends_at',
@@ -47,9 +47,9 @@ class Subscription extends Model
     /**
      * Get the user that owns the subscription.
      */
-    public function user(): BelongsTo
+    public function users(): HasMany
     {
-        return $this->belongsTo(User::class);
+        return $this->hasMany(User::class);
     }
 
     /**
@@ -58,9 +58,9 @@ class Subscription extends Model
     public function isActive(): bool
     {
         $now = Carbon::now();
-        
-        return $this->starts_at <= $now && 
-               ($this->ends_at === null || $this->ends_at >= $now);
+
+        return $this->starts_at <= $now &&
+            ($this->ends_at === null || $this->ends_at >= $now);
     }
 
     /**
@@ -79,28 +79,14 @@ class Subscription extends Model
         if ($this->ends_at === null) {
             return null; // Unlimited subscription
         }
-        
+
         $now = Carbon::now();
-        
+
         if ($this->ends_at <= $now) {
             return 0;
         }
-        
-        return $now->diffInDays($this->ends_at);
-    }
 
-    /**
-     * Create a freemium subscription for a user.
-     */
-    public static function createFreemium(User $user): self
-    {
-        return self::create([
-            'user_id' => $user->id,
-            'plan_name' => 'Freemium',
-            'starts_at' => Carbon::now(),
-            'ends_at' => null, // No expiration for freemium
-            'listings_limit' => 3,
-        ]);
+        return $now->diffInDays($this->ends_at);
     }
 
     /**
@@ -109,12 +95,12 @@ class Subscription extends Model
     public function scopeActive($query)
     {
         $now = Carbon::now();
-        
+
         return $query->where('starts_at', '<=', $now)
-                    ->where(function ($q) use ($now) {
-                        $q->whereNull('ends_at')
-                          ->orWhere('ends_at', '>=', $now);
-                    });
+            ->where(function ($q) use ($now) {
+                $q->whereNull('ends_at')
+                    ->orWhere('ends_at', '>=', $now);
+            });
     }
 
     /**
@@ -123,6 +109,6 @@ class Subscription extends Model
     public function scopeExpired($query)
     {
         return $query->whereNotNull('ends_at')
-                    ->where('ends_at', '<', Carbon::now());
+            ->where('ends_at', '<', Carbon::now());
     }
 }

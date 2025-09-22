@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ListingRequest;
+use App\Models\Category;
 use App\Models\Listing;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,7 +21,7 @@ class ListingController extends Controller
     public function index(Request $request): Response
     {
         $query = Listing::query()
-            ->with('user')
+            ->with(['user', 'category'])
             ->active()
             ->latest();
 
@@ -47,9 +47,11 @@ class ListingController extends Controller
         }
 
         $listings = $query->paginate(12)->withQueryString();
+        $categories = Category::orderBy('name')->get(['id', 'name', 'slug']);
 
         return Inertia::render('Listings/Index', [
             'listings' => $listings,
+            'categories' => $categories,
             'filters' => $request->only(['search', 'category', 'condition', 'country', 'city', 'min_price', 'max_price']),
         ]);
     }
@@ -68,8 +70,11 @@ class ListingController extends Controller
             ]);
         }
 
+        $categories = Category::orderBy('name')->get(['id', 'name', 'slug']);
+
         return Inertia::render('Listings/Create', [
             'remainingListings' => $user->remainingListings(),
+            'categories' => $categories,
         ]);
     }
 
@@ -89,13 +94,23 @@ class ListingController extends Controller
         $data['user_id'] = $user->id;
         $data['status'] = $data['status'] ?? 'active';
 
-        // Handle image upload
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('listings', 'public');
-            $data['image_path'] = $imagePath;
-        }
+        // Remove media-related fields from create data
+        unset($data['main_image'], $data['additional_images'], $data['remove_media']);
 
         $listing = Listing::create($data);
+
+        // Handle main image upload
+        if ($request->hasFile('main_image')) {
+            $listing->addMedia($request->file('main_image'))
+                ->toMediaCollection('images');
+        }
+
+        // Handle additional images upload
+        if ($request->hasFile('additional_images')) {
+            foreach ($request->file('additional_images') as $image) {
+                $listing->addMedia($image)->toMediaCollection('images');
+            }
+        }
 
         return redirect()->route('listings.show', $listing)
             ->with('success', 'Listing created successfully!');
@@ -108,10 +123,29 @@ class ListingController extends Controller
     {
         $listing->load('user');
 
+        // Add media URLs to listing
+        $listing->media = $listing->getMedia('images')->map(function ($media) {
+            // Use the actual request URL instead of config for correct host/port
+            $baseUrl = request()->getSchemeAndHttpHost();
+
+            // Get the storage path directly
+            $storagePath = '/storage/' . str_replace('public/', '', $media->getPathRelativeToRoot());
+
+            return [
+                'id' => $media->id,
+                'url' => $baseUrl . $storagePath,
+                'thumb_url' => $media->hasGeneratedConversion('thumb') ?
+                    $baseUrl . '/storage/' . str_replace('public/', '', $media->getPathRelativeToRoot('thumb')) :
+                    $baseUrl . $storagePath,
+                'preview_url' => $media->hasGeneratedConversion('preview') ?
+                    $baseUrl . '/storage/' . str_replace('public/', '', $media->getPathRelativeToRoot('preview')) :
+                    $baseUrl . $storagePath,
+            ];
+        });
+
         // Get related listings from the same category
         $relatedListings = Listing::query()
             ->active()
-            ->byCategory($listing->category)
             ->where('id', '!=', $listing->id)
             ->limit(4)
             ->get();
@@ -130,8 +164,33 @@ class ListingController extends Controller
     {
         $this->authorize('update', $listing);
 
+        $listing->load('category');
+
+        // Add media URLs to listing
+        $listing->media = $listing->getMedia('images')->map(function ($media) {
+            // Use the actual request URL instead of config for correct host/port
+            $baseUrl = request()->getSchemeAndHttpHost();
+
+            // Get the storage path directly
+            $storagePath = '/storage/' . str_replace('public/', '', $media->getPathRelativeToRoot());
+
+            return [
+                'id' => $media->id,
+                'url' => $baseUrl . $storagePath,
+                'thumb_url' => $media->hasGeneratedConversion('thumb') ?
+                    $baseUrl . '/storage/' . str_replace('public/', '', $media->getPathRelativeToRoot('thumb')) :
+                    $baseUrl . $storagePath,
+                'preview_url' => $media->hasGeneratedConversion('preview') ?
+                    $baseUrl . '/storage/' . str_replace('public/', '', $media->getPathRelativeToRoot('preview')) :
+                    $baseUrl . $storagePath,
+            ];
+        });
+
+        $categories = Category::orderBy('name')->get(['id', 'name', 'slug']);
+
         return Inertia::render('Listings/Edit', [
             'listing' => $listing,
+            'categories' => $categories,
         ]);
     }
 
@@ -144,20 +203,35 @@ class ListingController extends Controller
 
         $data = $request->validated();
 
-        // Handle image upload
-        if ($request->hasFile('image')) {
-            // Delete old image
-            if ($listing->image_path) {
-                Storage::disk('public')->delete($listing->image_path);
-            }
+        // Remove media-related fields from update data
+        unset($data['main_image'], $data['additional_images'], $data['remove_media']);
 
-            $imagePath = $request->file('image')->store('listings', 'public');
-            $data['image_path'] = $imagePath;
+        // Handle media removal
+        if ($request->has('remove_media') && is_array($request->remove_media)) {
+            foreach ($request->remove_media as $mediaId) {
+                $media = $listing->getMedia('images')->where('id', $mediaId)->first();
+                if ($media) {
+                    $media->delete();
+                }
+            }
+        }
+
+        // Handle main image upload
+        if ($request->hasFile('main_image')) {
+            $listing->addMedia($request->file('main_image'))
+                ->toMediaCollection('images');
+        }
+
+        // Handle additional images upload
+        if ($request->hasFile('additional_images')) {
+            foreach ($request->file('additional_images') as $image) {
+                $listing->addMedia($image)->toMediaCollection('images');
+            }
         }
 
         $listing->update($data);
 
-        return redirect()->route('listings.show', $listing)
+        return redirect()->route('listings.edit', $listing)
             ->with('success', 'Listing updated successfully!');
     }
 
@@ -168,11 +242,8 @@ class ListingController extends Controller
     {
         $this->authorize('delete', $listing);
 
-        // Delete image
-        if ($listing->image_path) {
-            Storage::disk('public')->delete($listing->image_path);
-        }
-
+        // Media will be automatically deleted when the model is deleted
+        // due to the media library's cleanup functionality
         $listing->delete();
 
         return redirect()->route('listings.index')

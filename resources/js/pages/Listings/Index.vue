@@ -38,10 +38,9 @@
               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             >
               <option value="">All Categories</option>
-              <option value="go_kart">Go Karts</option>
-              <option value="parts">Parts</option>
-              <option value="accessories">Accessories</option>
-              <option value="consumables">Consumables</option>
+              <option v-for="category in categories" :key="category.id" :value="category.id">
+                {{ category.name }}
+              </option>
             </select>
           </div>
 
@@ -55,7 +54,9 @@
             >
               <option value="">All Conditions</option>
               <option value="new">New</option>
+              <option value="like_new">Like New</option>
               <option value="used">Used</option>
+              <option value="needs_repair">Needs Repair</option>
             </select>
           </div>
 
@@ -131,9 +132,9 @@
             <div class="mb-2">
               <span
                 class="inline-block px-2 py-1 text-xs font-semibold rounded-full"
-                :class="getCategoryClass(listing.category)"
+                :class="getCategoryClass(listing.category?.name || '')"
               >
-                {{ getCategoryLabel(listing.category) }}
+                {{ listing.category?.name || 'Unknown' }}
               </span>
               <span
                 class="inline-block ml-2 px-2 py-1 text-xs font-semibold rounded-full"
@@ -229,11 +230,18 @@ interface User {
   name: string
 }
 
+interface Category {
+  id: number
+  name: string
+  slug: string
+}
+
 interface Listing {
   id: number
   title: string
   description: string
-  category: string
+  category_id: number
+  category?: Category
   condition: string
   price: number
   currency: string
@@ -249,6 +257,7 @@ interface Props {
     total: number
     links: any[]
   }
+  categories: Category[]
   filters: {
     search?: string
     category?: string
@@ -281,29 +290,35 @@ const applyFilters = () => {
   })
 }
 
-const getCategoryClass = (category: string) => {
-  const classes = {
-    go_kart: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    parts: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-    accessories: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
-    consumables: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-  }
-  return classes[category as keyof typeof classes] || 'bg-gray-100 text-gray-800'
-}
+const getCategoryClass = (categoryName: string) => {
+  // Generate colors based on category name hash for consistency
+  const colors = [
+    'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+    'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+    'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+  ]
 
-const getCategoryLabel = (category: string) => {
-  const labels = {
-    go_kart: 'Go Kart',
-    parts: 'Parts',
-    accessories: 'Accessories',
-    consumables: 'Consumables',
+  if (!categoryName) return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+
+  // Simple hash function to consistently assign colors
+  let hash = 0
+  for (let i = 0; i < categoryName.length; i++) {
+    hash = categoryName.charCodeAt(i) + ((hash << 5) - hash)
   }
-  return labels[category as keyof typeof labels] || category
+
+  return colors[Math.abs(hash) % colors.length]
 }
 
 const getConditionClass = (condition: string) => {
-  return condition === 'new'
-    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+  const classes = {
+    'new': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    'like_new': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    'used': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+    'needs_repair': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+  }
+  return classes[condition as keyof typeof classes] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
 }
 </script>

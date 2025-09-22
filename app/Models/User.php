@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -64,9 +65,9 @@ class User extends Authenticatable
     /**
      * Get the user's subscription.
      */
-    public function subscription(): HasOne
+    public function subscription(): BelongsTo
     {
-        return $this->hasOne(Subscription::class)->latest();
+        return $this->belongsTo(Subscription::class);
     }
 
     /**
@@ -83,13 +84,13 @@ class User extends Authenticatable
     public function canCreateListing(): bool
     {
         $subscription = $this->subscription;
-        
+
         if (!$subscription) {
             return false;
         }
 
         $activeListingsCount = $this->activeListings()->count();
-        
+
         return $activeListingsCount < $subscription->listings_limit;
     }
 
@@ -99,13 +100,13 @@ class User extends Authenticatable
     public function remainingListings(): int
     {
         $subscription = $this->subscription;
-        
+
         if (!$subscription) {
             return 0;
         }
 
         $activeListingsCount = $this->activeListings()->count();
-        
+
         return max(0, $subscription->listings_limit - $activeListingsCount);
     }
 }

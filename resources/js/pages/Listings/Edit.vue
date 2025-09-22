@@ -2,12 +2,10 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea/index';
 import AppLayout from '@/layouts/AppLayout.vue';
-import listingRoutes from '@/routes/listings';
-import { Form, Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import { LoaderCircle, Upload, X, ArrowLeft } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 interface User {
   id: number;
@@ -15,67 +13,169 @@ interface User {
   email: string;
 }
 
+interface Category {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+interface Media {
+  id: number;
+  url: string;
+  thumb_url: string;
+  preview_url: string;
+}
+
 interface Listing {
   id: number;
   title: string;
   description: string;
-  category: string;
+  category_id: number;
+  category?: Category;
   condition: string;
   price: number;
   currency: string;
   country: string;
   state_province?: string;
   city: string;
-  image_path?: string;
   status: string;
   user: User;
+  media: Media[];
 }
 
 interface Props {
   listing: Listing;
+  categories: Category[];
 }
 
 const props = defineProps<Props>();
 
-const imagePreview = ref<string | null>(
-  props.listing.image_path ? `/storage/${props.listing.image_path}` : null
-);
-const imageFile = ref<File | null>(null);
+const form = useForm({
+  title: props.listing.title,
+  description: props.listing.description,
+  category_id: props.listing.category_id,
+  condition: props.listing.condition,
+  price: props.listing.price,
+  currency: props.listing.currency,
+  country: props.listing.country,
+  state_province: props.listing.state_province,
+  city: props.listing.city,
+  status: props.listing.status,
+  main_image: null as File | null,
+  additional_images: [] as File[],
+  remove_media: [] as number[],
+});
 
-const handleImageUpload = (event: Event) => {
+
+// Use computed properties for better reactivity to props changes
+const existingMedia = computed(() => {
+  console.log('🎬 existingMedia computed, props.listing.media:', props.listing.media);
+  return props.listing.media || [];
+});
+
+const mainImage = computed(() => {
+  const media = existingMedia.value[0] || null;
+  console.log('🖼️ mainImage computed:', media);
+  return media;
+});
+
+const additionalImages = computed(() => {
+  const images = existingMedia.value.slice(1) || [];
+  console.log('📷 additionalImages computed:', images);
+  return images;
+});
+
+// New uploads
+const newMainImagePreview = ref<string | null>(null);
+const newMainImageFile = ref<File | null>(null);
+const newAdditionalImagePreviews = ref<string[]>([]);
+const newAdditionalImageFiles = ref<File[]>([]);
+
+const handleMainImageUpload = (event: Event) => {
   const target = event.target as HTMLInputElement;
   const file = target.files?.[0];
 
   if (file) {
-    imageFile.value = file;
+    newMainImageFile.value = file;
+    form.main_image = file;
     const reader = new FileReader();
     reader.onload = (e) => {
-      imagePreview.value = e.target?.result as string;
+      newMainImagePreview.value = e.target?.result as string;
     };
     reader.readAsDataURL(file);
   }
 };
 
-const removeImage = () => {
-  imagePreview.value = null;
-  imageFile.value = null;
-  const input = document.getElementById('image') as HTMLInputElement;
-  if (input) input.value = '';
-  const changeInput = document.getElementById('image-change') as HTMLInputElement;
-  if (changeInput) changeInput.value = '';
+const handleAdditionalImagesUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const files = target.files;
+
+  if (files) {
+    Array.from(files).forEach(file => {
+      const totalAdditional = additionalImages.value.length + newAdditionalImageFiles.value.length;
+      if (totalAdditional < 4) { // Limit to 4 additional images
+        newAdditionalImageFiles.value.push(file);
+        form.additional_images.push(file);
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          newAdditionalImagePreviews.value.push(e.target?.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
 };
 
-const categories = [
-  { value: 'go_kart', label: 'Go-Karts' },
-  { value: 'engine', label: 'Engines' },
-  { value: 'chassis', label: 'Chassis' },
-  { value: 'wheels_tires', label: 'Wheels & Tires' },
-  { value: 'safety_gear', label: 'Safety Gear' },
-  { value: 'parts', label: 'Parts' },
-  { value: 'accessories', label: 'Accessories' },
-  { value: 'consumables', label: 'Consumables' },
-  { value: 'tools', label: 'Tools' },
-];
+const submit = () => {
+  // Use POST with _method for file uploads since PUT doesn't work well with FormData
+  form.transform((data) => ({
+    ...data,
+    _method: 'PUT'
+  })).post(`/listings/${props.listing.id}`, {
+    onSuccess: () => {
+      // Reset the new upload state since we'll be redirected back with fresh data
+      newMainImagePreview.value = null;
+      newMainImageFile.value = null;
+      newAdditionalImagePreviews.value = [];
+      newAdditionalImageFiles.value = [];
+      form.main_image = null;
+      form.additional_images = [];
+      form.remove_media = [];
+
+      // Clear file inputs
+      const mainImageInput = document.getElementById('main_image') as HTMLInputElement;
+      if (mainImageInput) mainImageInput.value = '';
+      const additionalImagesInput = document.getElementById('additional_images') as HTMLInputElement;
+      if (additionalImagesInput) additionalImagesInput.value = '';
+    },
+  });
+};
+
+const removeMainImage = () => {
+  if (mainImage.value) {
+    console.log('🗑️ Removing main image:', mainImage.value.id);
+    form.remove_media.push(mainImage.value.id);
+  }
+  // Also clear new main image if set
+  newMainImagePreview.value = null;
+  newMainImageFile.value = null;
+  form.main_image = null;
+  const input = document.getElementById('main_image') as HTMLInputElement;
+  if (input) input.value = '';
+};
+
+const removeAdditionalImage = (mediaId: number) => {
+  console.log('🗑️ Removing additional image:', mediaId);
+  form.remove_media.push(mediaId);
+};
+
+const removeNewAdditionalImage = (index: number) => {
+  newAdditionalImagePreviews.value.splice(index, 1);
+  newAdditionalImageFiles.value.splice(index, 1);
+  form.additional_images.splice(index, 1);
+};
+
+// Categories are now passed from the backend as props
 
 const conditions = [
   { value: 'new', label: 'New' },
@@ -85,9 +185,9 @@ const conditions = [
 ];
 
 const currencies = [
-  { value: 'EUR', label: '€ EUR' },
-  { value: 'USD', label: '$ USD' },
-  { value: 'BGN', label: 'лв BGN' },
+  { value: 'eur', label: '€ EUR' },
+  { value: 'usd', label: '$ USD' },
+  { value: 'bgn', label: 'лв BGN' },
 ];
 
 const statuses = [
@@ -124,49 +224,48 @@ const statuses = [
             </p>
           </div>
 
-          <Form v-bind="listingRoutes.update.form(listing.id)" enctype="multipart/form-data"
-            v-slot="{ errors, processing }" class="space-y-6">
+          <form @submit.prevent="submit" enctype="multipart/form-data" class="space-y-6">
             <!-- Title -->
             <div>
               <Label for="title">Title *</Label>
-              <Input id="title" name="title" type="text" required :value="listing.title"
+              <Input id="title" name="title" type="text" required v-model="form.title"
                 placeholder="e.g., Racing Go-Kart Tony Kart Racer 401R" class="mt-1" />
-              <p v-if="errors.title" class="text-red-600 text-sm mt-1">{{ errors.title }}</p>
+              <p v-if="form.errors.title" class="text-red-600 text-sm mt-1">{{ form.errors.title }}</p>
             </div>
 
             <!-- Description -->
             <div>
               <Label for="description">Description *</Label>
-              <Textarea id="description" name="description" required :rows="4" :value="listing.description"
+              <textarea id="description" name="description" required rows="4" v-model="form.description"
                 placeholder="Describe your item in detail. Include condition, features, specifications, etc."
-                class="mt-1" />
-              <p v-if="errors.description" class="text-red-600 text-sm mt-1">{{ errors.description }}</p>
+                class="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"></textarea>
+              <p v-if="form.errors.description" class="text-red-600 text-sm mt-1">{{ form.errors.description }}</p>
             </div>
 
             <!-- Category and Condition -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label for="category">Category *</Label>
-                <select id="category" name="category" required :value="listing.category"
+                <select id="category_id" name="category_id" required v-model="form.category_id"
                   class="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                   <option value="">Select category</option>
-                  <option v-for="category in categories" :key="category.value" :value="category.value">
-                    {{ category.label }}
+                  <option v-for="category in categories" :key="category.id" :value="category.id">
+                    {{ category.name }}
                   </option>
                 </select>
-                <p v-if="errors.category" class="text-red-600 text-sm mt-1">{{ errors.category }}</p>
+                <p v-if="form.errors.category_id" class="text-red-600 text-sm mt-1">{{ form.errors.category_id }}</p>
               </div>
 
               <div>
                 <Label for="condition">Condition *</Label>
-                <select id="condition" name="condition" required :value="listing.condition"
+                <select id="condition" name="condition" required v-model="form.condition"
                   class="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                   <option value="">Select condition</option>
                   <option v-for="condition in conditions" :key="condition.value" :value="condition.value">
                     {{ condition.label }}
                   </option>
                 </select>
-                <p v-if="errors.condition" class="text-red-600 text-sm mt-1">{{ errors.condition }}</p>
+                <p v-if="form.errors.condition" class="text-red-600 text-sm mt-1">{{ form.errors.condition }}</p>
               </div>
             </div>
 
@@ -174,21 +273,21 @@ const statuses = [
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <Label for="price">Price *</Label>
-                <Input id="price" name="price" type="number" step="0.01" min="0" required :value="listing.price"
+                <Input id="price" name="price" type="number" step="0.01" min="0" required v-model="form.price"
                   placeholder="0.00" class="mt-1" />
-                <p v-if="errors.price" class="text-red-600 text-sm mt-1">{{ errors.price }}</p>
+                <p v-if="form.errors.price" class="text-red-600 text-sm mt-1">{{ form.errors.price }}</p>
               </div>
 
               <div>
                 <Label for="currency">Currency *</Label>
-                <select id="currency" name="currency" required :value="listing.currency"
+                <select id="currency" name="currency" required v-model="form.currency"
                   class="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                   <option value="">Select currency</option>
                   <option v-for="currency in currencies" :key="currency.value" :value="currency.value">
                     {{ currency.label }}
                   </option>
                 </select>
-                <p v-if="errors.currency" class="text-red-600 text-sm mt-1">{{ errors.currency }}</p>
+                <p v-if="form.errors.currency" class="text-red-600 text-sm mt-1">{{ form.errors.currency }}</p>
               </div>
             </div>
 
@@ -196,93 +295,175 @@ const statuses = [
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label for="country">Country *</Label>
-                <Input id="country" name="country" type="text" required :value="listing.country"
+                <Input id="country" name="country" type="text" required v-model="form.country"
                   placeholder="e.g., Bulgaria" class="mt-1" />
-                <p v-if="errors.country" class="text-red-600 text-sm mt-1">{{ errors.country }}</p>
+                <p v-if="form.errors.country" class="text-red-600 text-sm mt-1">{{ form.errors.country }}</p>
               </div>
 
               <div>
                 <Label for="state_province">State/Province</Label>
-                <Input id="state_province" name="state_province" type="text" :value="listing.state_province"
+                <Input id="state_province" name="state_province" type="text" v-model="form.state_province"
                   placeholder="e.g., Sofia" class="mt-1" />
-                <p v-if="errors.state_province" class="text-red-600 text-sm mt-1">{{ errors.state_province }}</p>
+                <p v-if="form.errors.state_province" class="text-red-600 text-sm mt-1">{{ form.errors.state_province }}
+                </p>
               </div>
 
               <div>
                 <Label for="city">City *</Label>
-                <Input id="city" name="city" type="text" required :value="listing.city" placeholder="e.g., Sofia"
+                <Input id="city" name="city" type="text" required v-model="form.city" placeholder="e.g., Sofia"
                   class="mt-1" />
-                <p v-if="errors.city" class="text-red-600 text-sm mt-1">{{ errors.city }}</p>
+                <p v-if="form.errors.city" class="text-red-600 text-sm mt-1">{{ form.errors.city }}</p>
               </div>
             </div>
 
             <!-- Status -->
             <div>
               <Label for="status">Status *</Label>
-              <select id="status" name="status" required :value="listing.status"
+              <select id="status" name="status" required v-model="form.status"
                 class="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                 <option v-for="status in statuses" :key="status.value" :value="status.value">
                   {{ status.label }}
                 </option>
               </select>
-              <p v-if="errors.status" class="text-red-600 text-sm mt-1">{{ errors.status }}</p>
+              <p v-if="form.errors.status" class="text-red-600 text-sm mt-1">{{ form.errors.status }}</p>
             </div>
 
-            <!-- Image Upload -->
+            <!-- Main Image Upload -->
             <div>
-              <Label for="image">Image</Label>
+              <Label for="main_image">Main Image</Label>
 
-              <!-- Image Preview -->
-              <div v-if="imagePreview" class="mt-2 relative">
-                <img :src="imagePreview" alt="Preview" class="max-w-full h-48 object-cover rounded-lg" />
-                <button @click="removeImage" type="button"
-                  class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
-                  <X class="w-4 h-4" />
-                </button>
+              <!-- Current Main Image -->
+              <div v-if="mainImage" class="mt-2">
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Current Main Image (ID: {{ mainImage.id }})
+                </h4>
+                <div class="relative inline-block">
+                  <img :src="mainImage.thumb_url" :alt="'Current main image'"
+                    class="w-full max-w-sm h-48 object-cover rounded-lg" />
+                  <button @click="removeMainImage" type="button"
+                    class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
+                    <X class="w-4 h-4" />
+                  </button>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">URL: {{ mainImage.thumb_url }}</p>
               </div>
 
-              <!-- Upload Area -->
-              <div v-else
-                class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md">
+              <!-- New Main Image Preview -->
+              <div v-if="newMainImagePreview" class="mt-2">
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Main Image</h4>
+                <div class="relative inline-block">
+                  <img :src="newMainImagePreview" alt="New main image preview"
+                    class="w-full max-w-sm h-48 object-cover rounded-lg" />
+                  <button @click="removeMainImage" type="button"
+                    class="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
+                    <X class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <!-- Main Image Upload Area -->
+              <div v-if="!mainImage && !newMainImagePreview"
+                class="mt-2 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md">
                 <div class="space-y-1 text-center">
                   <Upload class="mx-auto h-12 w-12 text-gray-400" />
                   <div class="flex text-sm text-gray-600 dark:text-gray-300">
-                    <label for="image"
+                    <label for="main_image"
                       class="relative cursor-pointer bg-white dark:bg-gray-800 rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
-                      <span>Upload a file</span>
-                      <input id="image" name="image" type="file" accept="image/*" class="sr-only"
-                        @change="handleImageUpload" />
+                      <span>Upload main image</span>
+                      <input id="main_image" name="main_image" type="file" accept="image/*" class="sr-only"
+                        @change="handleMainImageUpload" />
                     </label>
                     <p class="pl-1">or drag and drop</p>
                   </div>
                   <p class="text-xs text-gray-500 dark:text-gray-400">
-                    PNG, JPG, GIF up to 10MB
+                    PNG, JPG, GIF, WebP up to 10MB
                   </p>
                 </div>
               </div>
 
-              <!-- Change image when preview is shown -->
-              <div v-if="imagePreview" class="mt-2">
-                <label for="image-change"
+              <!-- Change Main Image Button -->
+              <div v-if="mainImage && !newMainImagePreview" class="mt-2">
+                <label for="main_image_change"
                   class="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                   <Upload class="w-4 h-4 mr-2" />
-                  Change Image
-                  <input id="image-change" name="image" type="file" accept="image/*" class="sr-only"
-                    @change="handleImageUpload" />
+                  Change Main Image
+                  <input id="main_image_change" name="main_image" type="file" accept="image/*" class="sr-only"
+                    @change="handleMainImageUpload" />
                 </label>
               </div>
 
-              <p v-if="errors.image" class="text-red-600 text-sm mt-1">{{ errors.image }}</p>
+              <p v-if="form.errors.main_image" class="text-red-600 text-sm mt-1">{{ form.errors.main_image }}</p>
+            </div>
+
+            <!-- Additional Images Upload -->
+            <div>
+              <Label for="additional_images">Additional Images (up to 4)</Label>
+
+              <!-- Current Additional Images -->
+              <div v-if="additionalImages.length > 0" class="mt-2">
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Current Additional Images ({{ additionalImages.length }})
+                </h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div v-for="media in additionalImages" :key="media.id" class="relative">
+                    <img :src="media.thumb_url" :alt="`Additional image ${media.id}`"
+                      class="w-full h-24 object-cover rounded-lg" />
+                    <button @click="removeAdditionalImage(media.id)" type="button"
+                      class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
+                      <X class="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- New Additional Images Preview -->
+              <div v-if="newAdditionalImagePreviews.length > 0" class="mt-4">
+                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Additional Images</h4>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div v-for="(preview, index) in newAdditionalImagePreviews" :key="`new-${index}`" class="relative">
+                    <img :src="preview" :alt="`New additional image ${index + 1}`"
+                      class="w-full h-24 object-cover rounded-lg" />
+                    <button @click="removeNewAdditionalImage(index)" type="button"
+                      class="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600">
+                      <X class="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Additional Images Upload Area -->
+              <div v-if="(additionalImages.length + newAdditionalImageFiles.length) < 4"
+                class="mt-2 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md">
+                <div class="space-y-1 text-center">
+                  <Upload class="mx-auto h-8 w-8 text-gray-400" />
+                  <div class="flex text-sm text-gray-600 dark:text-gray-300">
+                    <label for="additional_images"
+                      class="relative cursor-pointer bg-white dark:bg-gray-800 rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                      <span>Upload additional images</span>
+                      <input id="additional_images" name="additional_images[]" type="file" accept="image/*" multiple
+                        class="sr-only" @change="handleAdditionalImagesUpload" />
+                    </label>
+                    <p class="pl-1">or drag and drop</p>
+                  </div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    PNG, JPG, GIF, WebP up to 10MB each ({{ 4 - (additionalImages.length +
+                      newAdditionalImageFiles.length) }} slots remaining)
+                  </p>
+                </div>
+              </div>
+
+              <p v-if="form.errors.additional_images" class="text-red-600 text-sm mt-1">{{ form.errors.additional_images
+                }}</p>
             </div>
 
             <!-- Submit Button -->
             <div class="pt-6">
-              <Button type="submit" :disabled="processing" class="w-full">
-                <LoaderCircle v-if="processing" class="w-4 h-4 mr-2 animate-spin" />
+              <Button type="submit" :disabled="form.processing" class="w-full">
+                <LoaderCircle v-if="form.processing" class="w-4 h-4 mr-2 animate-spin" />
                 Update Listing
               </Button>
             </div>
-          </Form>
+          </form>
         </div>
       </div>
     </div>

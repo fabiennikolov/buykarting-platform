@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Category;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class ListingRequest extends FormRequest
 {
@@ -24,14 +26,18 @@ class ListingRequest extends FormRequest
         return [
             'title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string', 'max:5000'],
-            'category' => ['required', 'string', 'in:go_kart,parts,accessories,consumables'],
-            'condition' => ['required', 'string', 'in:new,used'],
+            'category_id' => ['required', 'integer', Rule::exists('categories', 'id')],
+            'condition' => ['required', 'string', 'in:new,like_new,used,needs_repair'],
             'price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
-            'currency' => ['required', 'string', 'in:EUR,BGN,USD'],
+            'currency' => ['required', 'string', 'in:eur,bgn,usd'],
             'country' => ['required', 'string', 'max:100'],
             'state_province' => ['nullable', 'string', 'max:100'],
             'city' => ['required', 'string', 'max:100'],
-            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'],
+            'main_image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:10240'],
+            'additional_images' => ['nullable', 'array', 'max:4'],
+            'additional_images.*' => ['image', 'mimes:jpeg,png,jpg,gif,webp', 'max:10240'],
+            'remove_media' => ['nullable', 'array'],
+            'remove_media.*' => ['integer'],
             'status' => ['sometimes', 'string', 'in:active,sold,draft'],
         ];
     }
@@ -48,8 +54,8 @@ class ListingRequest extends FormRequest
             'title.max' => 'The listing title may not be greater than 255 characters.',
             'description.required' => 'The description is required.',
             'description.max' => 'The description may not be greater than 5000 characters.',
-            'category.required' => 'Please select a category.',
-            'category.in' => 'Please select a valid category.',
+            'category_id.required' => 'Please select a category.',
+            'category_id.exists' => 'Please select a valid category.',
             'condition.required' => 'Please select the item condition.',
             'condition.in' => 'Please select a valid condition.',
             'price.required' => 'The price is required.',
@@ -60,9 +66,13 @@ class ListingRequest extends FormRequest
             'currency.in' => 'Please select a valid currency.',
             'country.required' => 'The country is required.',
             'city.required' => 'The city is required.',
-            'image.image' => 'The file must be an image.',
-            'image.mimes' => 'The image must be a file of type: jpeg, png, jpg, gif.',
-            'image.max' => 'The image may not be greater than 2048 kilobytes.',
+            'main_image.image' => 'The main image must be an image file.',
+            'main_image.mimes' => 'The main image must be a file of type: jpeg, png, jpg, gif, webp.',
+            'main_image.max' => 'The main image may not be greater than 10MB.',
+            'additional_images.max' => 'You can upload a maximum of 4 additional images.',
+            'additional_images.*.image' => 'Each additional image must be an image file.',
+            'additional_images.*.mimes' => 'Each additional image must be a file of type: jpeg, png, jpg, gif, webp.',
+            'additional_images.*.max' => 'Each additional image may not be greater than 10MB.',
         ];
     }
 }

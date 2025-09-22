@@ -21,7 +21,7 @@ class ListingFactory extends Factory
         $conditions = ['new', 'used'];
         $currencies = ['EUR', 'BGN', 'USD'];
         $statuses = ['active', 'sold', 'draft'];
-        
+
         $kartTitles = [
             'Professional Racing Kart - Tony Kart',
             'Vintage Go-Kart Frame',
@@ -29,7 +29,7 @@ class ListingFactory extends Factory
             'Shifter Kart - CRG',
             'Rental Kart - Birel ART',
         ];
-        
+
         $partsTitles = [
             'IAME X30 Engine',
             'Racing Wheels Set',
@@ -37,7 +37,7 @@ class ListingFactory extends Factory
             'Carburetor - Tillotson',
             'Chain - DID 219',
         ];
-        
+
         $accessoriesTitles = [
             'Racing Helmet - Arai',
             'Racing Suit - Sparco',
@@ -45,7 +45,7 @@ class ListingFactory extends Factory
             'Tire Pressure Gauge',
             'Tool Kit - Complete',
         ];
-        
+
         $consumablesTitles = [
             'Racing Tires - Bridgestone',
             'Engine Oil - Motul',
@@ -55,7 +55,7 @@ class ListingFactory extends Factory
         ];
 
         $category = fake()->randomElement($categories);
-        
+
         $titlesByCategory = [
             'go_kart' => $kartTitles,
             'parts' => $partsTitles,
@@ -67,7 +67,6 @@ class ListingFactory extends Factory
             'user_id' => User::factory(),
             'title' => fake()->randomElement($titlesByCategory[$category]),
             'description' => fake()->paragraphs(3, true),
-            'category' => $category,
             'condition' => fake()->randomElement($conditions),
             'price' => fake()->randomFloat(2, 10, 5000),
             'currency' => fake()->randomElement($currencies),
@@ -84,7 +83,7 @@ class ListingFactory extends Factory
      */
     public function active(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'status' => 'active',
         ]);
     }
@@ -94,7 +93,7 @@ class ListingFactory extends Factory
      */
     public function sold(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'status' => 'sold',
         ]);
     }
@@ -104,7 +103,7 @@ class ListingFactory extends Factory
      */
     public function draft(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'status' => 'draft',
         ]);
     }
@@ -114,7 +113,7 @@ class ListingFactory extends Factory
      */
     public function goKart(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'category' => 'go_kart',
             'title' => fake()->randomElement([
                 'Professional Racing Kart - Tony Kart',
@@ -132,7 +131,7 @@ class ListingFactory extends Factory
      */
     public function parts(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'category' => 'parts',
             'title' => fake()->randomElement([
                 'IAME X30 Engine',
